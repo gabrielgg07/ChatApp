@@ -3,11 +3,11 @@
     justify-content: center;
     align-items: center;
     height: 100vh;
-    background-color: #1d2930;
+    background-color: #5f67b4;
   }
   
   .login-card {
-    background-color: #141e26;
+    background-color: #272836;
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
     padding: 40px;
@@ -16,7 +16,7 @@
   }
   
   .login-title {
-    color: #00a884;
+    color: #7A86F7;
     font-size: 28px;
     text-align: center;
     margin-bottom: 8px;
@@ -53,16 +53,16 @@
     font-size: 16px;
     background-color: #b7bec3;
     color: #494e51;
-    transition: border-color 0.3s;
+    transition: background-color 0.3s, border-color 0.3s;
   }
   
   .form-group input:focus {
-    border-color: #00a884;
+    border-color: #7A86F7;
     outline: none;
   }
   
   .login-button {
-    background-color: #00a884;
+    background-color: #7A86F7;
     color: white;
     border: none;
     border-radius: 6px;
@@ -74,7 +74,7 @@
   }
   
   .login-button:hover {
-    background-color: #008f72;
+    background-color: #7A86F7;
   }
   
   .error-message {

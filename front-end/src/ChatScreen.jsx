@@ -28,11 +28,23 @@ function ChatScreen({ onLogout }) {
     setNewMessage('');
   };
 
+  const handleAddChat = () => {
+  };
+
   const selectedChatMessages = chatMessages.filter(
     msg => msg.chatId === selectedChat
   );
 
   const selectedChatData = chats.find(chat => chat.id === selectedChat);
+
+  // Helper function to get initials from a name
+  const getInitials = (name) => {
+    const names = name.split(' ');
+    if (names.length >= 2) {
+      return `${names[0].charAt(0)}${names[names.length - 1].charAt(0)}`;
+    }
+    return name.charAt(0);
+  };
 
   return (
     <div className="chat-screen">
@@ -40,9 +52,14 @@ function ChatScreen({ onLogout }) {
       <div className="chat-sidebar">
         <div className="sidebar-header">
           <h2>Chats</h2>
-          <button className="logout-button" onClick={onLogout}>
-            Logout
-          </button>
+          <div className="header-buttons">
+            <button className="add-chat-button" onClick={handleAddChat}>
+              <span className="add-icon">+</span> Add Chat
+            </button>
+            <button className="logout-button" onClick={onLogout}>
+              <span className="logout-icon">↪</span> Logout
+            </button>
+          </div>
         </div>
         <div className="chat-list">
           {chats.map((chat) => (
@@ -52,7 +69,7 @@ function ChatScreen({ onLogout }) {
               onClick={() => handleChatSelect(chat.id)}
             >
               <div className="chat-avatar">
-                {chat.name.charAt(0)}
+                {getInitials(chat.name)}
               </div>
               <div className="chat-preview">
                 <div className="chat-preview-header">
@@ -73,7 +90,7 @@ function ChatScreen({ onLogout }) {
             <div className="chat-header">
               <div className="chat-contact-info">
                 <div className="chat-avatar">
-                  {selectedChatData?.name.charAt(0)}
+                  {selectedChatData ? getInitials(selectedChatData.name) : ''}
                 </div>
                 <h2>{selectedChatData?.name}</h2>
               </div>

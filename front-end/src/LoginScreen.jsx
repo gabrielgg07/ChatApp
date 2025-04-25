@@ -1,55 +1,105 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import './LoginScreen.css';
 
 function LoginScreen({ onLogin }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState(''); // 'error' or 'success'
+  const [focusedField, setFocusedField] = useState('username');
+  
+  const usernameRef = useRef(null);
+  
+  // Set focus to username field by default when component mounts
+  useEffect(() => {
+    if (usernameRef.current) {
+      usernameRef.current.focus();
+    }
+  }, []);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (username === 'test' && password === 'test') {
       onLogin(username, password);
     } else {
-      setError('Invalid credentials. Try username: test, password: test');
+      setMessage('Invalid user. Try "test" "test"');
+      setMessageType('error');
+    }
+  };
+
+  const handleSignupClick = (e) => {
+    e.preventDefault();
+    // Show success message
+    setMessage('User successfully created');
+    setMessageType('success');
+    // Clear form fields
+    setUsername('');
+    setPassword('');
+    // Set focus back to username
+    if (usernameRef.current) {
+      usernameRef.current.focus();
     }
   };
 
   return (
     <div className="login-container">
-      <div className="login-card">
-        <h1 className="login-title">ChatApp</h1>
-        <p className="login-subtitle">Sign in to continue</p>
+      <div className="combined-card">
+        <div className="welcome-section">
+          <h1 className="welcome-title">ChatApp</h1>
+          <p className="welcome-subtitle">
+            Experience seamless conversations with our AI-enhanced chat app, built using a custom NLP model, real-time socket communication, and a threadpool-powered backend for smooth performance.
+          </p>
+        </div>
         
-        <form onSubmit={handleSubmit} className="login-form">
-          {error && <div className="error-message">{error}</div>}
-          
-          <div className="form-group">
-            <label htmlFor="username">Username</label>
-            <input
-              type="text"
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter your username"
-              required
-            />
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="password">Password</label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
-              required
-            />
-          </div>
-          
-          <button type="submit" className="login-button">Sign In</button>
-        </form>
+        <div className="login-section">
+          <form onSubmit={handleSubmit} className="login-form">
+            {message && (
+              <div className={`message ${messageType}`}>
+                {message}
+              </div>
+            )}
+            
+            <div className={`form-group ${focusedField === 'username' ? 'focused' : ''}`}>
+              <label htmlFor="username">Username</label>
+              <input
+                ref={usernameRef}
+                type="text"
+                id="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                onFocus={() => setFocusedField('username')}
+                placeholder="Enter your username"
+                required
+              />
+            </div>
+            
+            <div className={`form-group ${focusedField === 'password' ? 'focused' : ''}`}>
+              <label htmlFor="password">Password</label>
+              <input
+                type="password"
+                id="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onFocus={() => setFocusedField('password')}
+                placeholder="Enter your password"
+                required
+              />
+            </div>
+            
+            <div className="button-group">
+              <button type="submit" className="login-button">
+                Login
+              </button>
+              <button 
+                type="button" 
+                className="signup-button" 
+                onClick={handleSignupClick}
+              >
+                Sign up
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

@@ -5,12 +5,11 @@ function LoginScreen({ onLogin }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState(''); // 'error' or 'success'
+  const [messageType, setMessageType] = useState('');
   const [focusedField, setFocusedField] = useState('username');
   
   const usernameRef = useRef(null);
   
-  // Set focus to username field by default when component mounts
   useEffect(() => {
     if (usernameRef.current) {
       usernameRef.current.focus();
@@ -29,13 +28,10 @@ function LoginScreen({ onLogin }) {
 
   const handleSignupClick = (e) => {
     e.preventDefault();
-    // Show success message
     setMessage('User successfully created');
     setMessageType('success');
-    // Clear form fields
     setUsername('');
     setPassword('');
-    // Set focus back to username
     if (usernameRef.current) {
       usernameRef.current.focus();
     }

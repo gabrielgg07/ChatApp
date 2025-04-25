@@ -82,9 +82,9 @@
     background-color: #b7bec3 !important; /* Force background color */
     color: #494e51;
     transition: background-color 0.3s, border-color 0.3s;
-    -webkit-appearance: none; /* Remove default styling on iOS */
-    -moz-appearance: none;    /* Remove default styling on Firefox */
-    appearance: none;         /* Standard syntax */
+    -webkit-appearance: none; 
+    -moz-appearance: none;    
+    appearance: none;        
   }
   
   /* Ensure color consistency in all states */
@@ -97,7 +97,7 @@
   .form-group input:-webkit-autofill:hover,
   .form-group input:-webkit-autofill:focus {
     background-color: #b7bec3 !important;
-    -webkit-box-shadow: 0 0 0 30px #b7bec3 inset !important; /* Needed for Chrome autofill */
+    -webkit-box-shadow: 0 0 0 30px #b7bec3 inset !important; 
   }
   
   .form-group input:focus {
@@ -159,7 +159,6 @@
     background-color: rgba(122, 134, 247, 0.1);
   }
   
-  /* Message styling */
   .message {
     padding: 10px;
     border-radius: 6px;
@@ -167,14 +166,12 @@
     margin-bottom: 0px;
   }
   
-  /* Error message styling */
   .message.error {
     background-color: #3b0d01;
     color: #f3a999;
     border: 1px solid #d83b01;
   }
   
-  /* Success message styling - using existing gray shades */
   .message.success {
     background-color: #2a2f32;
     color: #c9cfd3;

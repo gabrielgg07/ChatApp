@@ -1,13 +1,14 @@
 import uuid
 from datetime import datetime
+import threading
 import bcrypt
 import jwtF as jwtF
 
-
 def create_chat_room(db, user_ids):
-    if (len(user_ids) < 2):
-        print("need more people")
+    if len(user_ids) < 2:
+        print("Need more people to create a chat room.")
         return
+
     chat_id = str(uuid.uuid4())  # Generate unique chat ID
 
     # Create chat room entry
@@ -22,10 +23,18 @@ def create_chat_room(db, user_ids):
     for user_id in user_ids:
         user_ref = db.collection("users").document(user_id)
         user_data = user_ref.get().to_dict()
-        user_ref.update({"chat_rooms": user_data.get("chat_rooms", []) + [chat_id]})
+        if user_data is None:
+            print(f"User {user_id} does not exist!")
+            continue
+
+        # Safely update the chat_rooms field
+        chat_rooms = user_data.get("chat_rooms", [])
+        chat_rooms.append(chat_id)
+        user_ref.update({"chat_rooms": chat_rooms})
 
     print(f"Chat room {chat_id} created!")
     return chat_id
+
 
 def add_user_to_chat(db, chat_id, user_id):
     
@@ -45,32 +54,79 @@ def add_user_to_chat(db, chat_id, user_id):
         "users": ArrayUnion([user_id])
     })
     print(f"User {user_id} added to chat room {chat_id}")
-def send_message(db, chat_id, user_id, message):
+
+
+def get_users_in_chat(db, chat_id):
     """
-    Send a message in a chat room.
-    
-    Stores the message in a subcollection called "messages" under the chat room document,
-    and updates the chat room's metadata (last_message and timestamp).
+    Return the list of user_id strings for the given chat room.
+    If the room doesn’t exist or has no users field, returns [].
     """
+    room_ref = db.collection("chat_rooms").document(chat_id)
+    room_doc = room_ref.get()
+    if not room_doc.exists:
+        return []
+    data = room_doc.to_dict()
+    # assume your chat-room document has a "users" array field
+    return data.get("users", [])
+
+
+def send_message(db,
+                 chat_id: str,
+                 user_id: str,
+                 message: str,
+                 activeUsers: dict,
+                 activeUsersLock: threading.Lock):
+    """
+    1) Store the message in Firestore under chat_rooms/<chat_id>/messages
+    2) Update the chat room metadata (last_message, timestamp)
+    3) Broadcast over sockets to any active users in that chat
+    """
+
+    # 1️⃣ Persist to Firestore
     message_id = str(uuid.uuid4())
+    ts = datetime.utcnow().isoformat()
     message_data = {
         "message_id": message_id,
-        "user_id": user_id,
-        "content": message,
-        "timestamp": datetime.utcnow().isoformat()
+        "user_id":    user_id,
+        "content":    message,
+        "timestamp":  ts
     }
-    
-    # Add message to the "messages" subcollection
-    db.collection("chat_rooms").document(chat_id)\
-      .collection("messages").document(message_id).set(message_data)
-    
-    # Optionally update the chat room document with the last message info
-    db.collection("chat_rooms").document(chat_id).update({
-        "last_message": message,
-        "timestamp": datetime.utcnow().isoformat()
-    })
-    
+
+    # add to subcollection
+    db.collection("chat_rooms") \
+      .document(chat_id) \
+      .collection("messages") \
+      .document(message_id) \
+      .set(message_data)
+
+    # update last_message & timestamp
+    db.collection("chat_rooms") \
+      .document(chat_id) \
+      .update({
+          "last_message": message,
+          "timestamp":    ts
+      })
+
     print(f"Message from {user_id}: {message} added to chat room {chat_id}")
+
+    # 2️⃣ Fetch the canonical list of users in this chat room
+    room_user_ids = get_users_in_chat(db, chat_id)
+
+    # 3️⃣ Broadcast to any connected users in that room
+    with activeUsersLock:
+        for uid in room_user_ids:
+            # skip the sender, and skip anyone not currently connected
+            if uid == user_id or uid not in activeUsers:
+                continue
+
+            sock = activeUsers[uid]
+            try:
+                # send them the message; you can adjust formatting as needed
+                sock.sendall(f"{user_id}: {message}\n".encode("utf-8"))
+            except Exception as e:
+                # on error (broken pipe, etc.), remove from activeUsers
+                print(f"[!] Failed to send to {uid}, removing: {e}")
+                del activeUsers[uid]
 
 def get_all_messages(db, chat_id):
     print("Running get_all_messages...")

@@ -19,6 +19,17 @@ function ChatScreen({  socket, onLogout, username }) {
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [showEditChatModal, setShowEditChatModal] = useState(false);
 
+  const [showAIInsightsModal, setShowAIInsightsModal] = useState(false);
+
+  const openAIInsightsModal = () => {
+    setShowAIInsightsModal(true);
+  };
+
+  const closeAIInsightsModal = () => {
+    setShowAIInsightsModal(false);
+  };
+  
+
 
   const selectedChatRef = useRef(selectedChat);
   useEffect(() => {
@@ -306,6 +317,11 @@ function ChatScreen({  socket, onLogout, username }) {
     handleCloseModal();
   };
 
+  const handleAIInsights = () => {
+    console.log("AI Insights button clicked!");
+    // TODO: logic to fetch/display insights
+  };
+
   const selectedChatMessages = chatMessages.filter(
     msg => msg.chatId === selectedChat
   );
@@ -369,6 +385,24 @@ function ChatScreen({  socket, onLogout, username }) {
                 </div>
                 <h2>{selectedChatData?.name}</h2>
               </div>
+              <button className="ai-insights-button" onClick={openAIInsightsModal}>
+                <span className="rainbow-text">AI Insights</span>
+              </button>
+
+              {showAIInsightsModal && (
+                <div className="modal-overlay" onClick={closeAIInsightsModal}>
+                  <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                    <div className="modal-header">
+                      <h2>AI Insights</h2>
+                      <button className="close-button" onClick={closeAIInsightsModal}>×</button>
+                    </div>
+                    <div className="modal-body">
+                      <p>This is where your AI-generated insights will appear.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <button className="edit-chat-button" onClick={handleEditChat}>
                 <span>Edit</span> <span className="three-dots">⋮</span>
               </button>

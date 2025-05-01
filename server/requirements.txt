@@ -1,0 +1,5 @@
+firebase-admin
+pyjwt
+bcrypt
+websockets
+dotenv

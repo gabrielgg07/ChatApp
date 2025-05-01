@@ -1,1 +1,5 @@
 server/firebase-key.json
+server/pycache
+server/.env
+frotnend/node_modules
+frontend/package-lock.json

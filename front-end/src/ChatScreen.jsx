@@ -7,6 +7,7 @@ import './ChatScreen.css';
 const TAG_CHATS    = 'CHATS ';          // note the SPACE – that’s what the server sends
 const TAG_HISTORY  = 'MESSAGES_JSON';   // bulk load
 const TAG_LIVE     = 'MESSAGE_JSON';    // single push
+const TAG_INSIGHTS = "INSIGHTS";
 
 /* helper */
 const hasTag = (s, tag) => s.startsWith(tag);
@@ -20,6 +21,8 @@ function ChatScreen({  socket, onLogout, username }) {
   const [showEditChatModal, setShowEditChatModal] = useState(false);
 
   const [showAIInsightsModal, setShowAIInsightsModal] = useState(false);
+  const [aiInsights, setAIInsights] = useState(null);
+
 
   const openAIInsightsModal = () => {
     setShowAIInsightsModal(true);
@@ -49,6 +52,8 @@ function ChatScreen({  socket, onLogout, username }) {
     /* one, stable listener (no re-creation every render) */
     const handleIncoming = useCallback((evt) => {
       const msg = evt.data.trim();
+      console.log("[INCOMING SOCKET MESSAGE]", msg);
+      
   
       /* ─── 1. CHATS LIST ───────────────────────────── */
       if (hasTag(msg, TAG_CHATS)) {
@@ -73,6 +78,18 @@ function ChatScreen({  socket, onLogout, username }) {
         });
   
         setChatList(uiChats);
+        return;
+      }
+
+      /* ─── AI INSIGHTS ───────────────────────────── */
+      if (hasTag(msg, TAG_INSIGHTS)) {
+        try {
+          const insights = JSON.parse(msg.slice(TAG_INSIGHTS.length).trim());
+          console.log("🧠 AI Insights:", insights);
+          setAIInsights(insights);
+        } catch (e) {
+          console.error("Invalid INSIGHTS JSON:", e);
+        }
         return;
       }
   
@@ -176,6 +193,14 @@ function ChatScreen({  socket, onLogout, username }) {
     useEffect(() => {
       if (!socket || !selectedChat) return;
       socket.send(`join ${selectedChat}`);
+    }, [socket, selectedChat]);
+
+
+    useEffect(() => {
+      if (!socket || !selectedChat) return;
+
+      // Send the command to request insights
+      socket.send(`get_ai_insights ${selectedChat}`);
     }, [socket, selectedChat]);
   
 
@@ -397,7 +422,12 @@ function ChatScreen({  socket, onLogout, username }) {
                       <button className="close-button" onClick={closeAIInsightsModal}>×</button>
                     </div>
                     <div className="modal-body">
-                      <p>This is where your AI-generated insights will appear.</p>
+                        {showAIInsightsModal && (
+                        <AIInsightsModal
+                          onClose={closeAIInsightsModal}
+                          insights={aiInsights}
+                        />
+                      )}
                     </div>
                   </div>
                 </div>
@@ -541,5 +571,45 @@ function ChatScreen({  socket, onLogout, username }) {
     </div>
   );
 }
+
+
+const AIInsightsModal = ({ insights, onClose }) => {
+  if (!insights) return null;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>AI Insights</h2>
+          <button className="close-button" onClick={onClose}>×</button>
+        </div>
+
+        <div className="modal-body">
+          <h4>Additional Notes</h4>
+          <p>{insights.additional_notes}</p>
+
+          <h4>Pending Tasks</h4>
+          <ul>
+            {insights.pending_tasks.map((task, idx) => (
+              <li key={idx}>
+                <strong>{task.description}</strong><br />
+                <small>Assigned to: {task.assigned_to}</small>
+              </li>
+            ))}
+          </ul>
+
+          <h4>Completed Tasks</h4>
+          <ul>
+            {insights.completed_tasks.map((task, idx) => (
+              <li key={idx}>
+                ✅ {task.description} <small>(by {task.completed_by})</small>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default ChatScreen;

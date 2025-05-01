@@ -56,6 +56,16 @@ async def run_ws(raw: str,
             lock
         )
 
+    elif command == "get_ai_insights":
+        if len(args) == 1:
+            insights = serv_func.get_ai_insights(db, args[0])
+            if insights is not None:
+                await _reply(user_id, "INSIGHTS " + json.dumps(insights), active_users, lock)
+            else:
+                await _reply(user_id, json.dumps({"error": "No insights found"}), active_users, lock)
+
+    
+
     else:
         await _reply(user_id, f"ERROR unknown command {command}", active_users, lock)
 

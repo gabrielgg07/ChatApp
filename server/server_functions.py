@@ -230,3 +230,14 @@ def login_user(db, username, input_password):
 
     token = jwtF.generate_jwt({"sub": user_data["user_id"]})
     return {"token": token, "user_id": user_data["user_id"]}
+
+def get_ai_insights(db, chat_id):
+
+    insights_ref = db.collection("chat_rooms").document(chat_id).collection("llm_insights")
+    query = insights_ref.where("chat_id", "==", chat_id).limit(1)
+    results = query.get()
+    insights_doc = insights_ref.get()
+    if not results:
+        return None
+    return results[0].to_dict()
+

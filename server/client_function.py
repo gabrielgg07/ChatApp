@@ -1,67 +1,68 @@
 import server_functions as serv_func
-import socket
-import threading
+import asyncio
+import json
 
-
-
-
-# Global dictionary mapping user IDs to their connected client sockets
-connected_users = {}
-# A lock to guard access to connected_users
-connected_users_lock = threading.Lock()
-
-def add_connected_user(user_id, client_socket):
-    with connected_users_lock:
-        connected_users[user_id] = client_socket
-
-def remove_connected_user(user_id):
-    with connected_users_lock:
-        if user_id in connected_users:
-            del connected_users[user_id]
-
-def get_connected_user(user_id):
-    with connected_users_lock:
-        return connected_users.get(user_id)
-
-
-def commandProcess(command, arguments, db, activeUsers, activeUsersLock):
-    if (command == "create_user"):
-        if len(arguments) != 2:
-            print("invalid arguments")
-        else:
-            serv_func.create_user(db, arguments[0], arguments[1])
-    elif (command == "login_user"):
-        if len(arguments) != 2:
-            print("invalid arguments")
-        else:
-            #send the returned user_id/potential jwt key back to the user
-            serv_func.login_user(db, arguments[0], arguments[1])
-    elif (command == "create_chat"):
-        serv_func.create_chat_room(db, arguments)
-    elif (command == "send_message"):
-        if len(arguments) < 3:
-            print("invalid arguments")
-            return
-        serv_func.send_message(db, arguments[0], arguments[1], arguments[2:], activeUsers, activeUsersLock)
-    elif (command == "get_all_messages"):
-        if len(arguments) != 1:
-            print("invalid arguments")
-            return
-        #instead of returning messages to update the user, this will call another function that sends the message data to the user. 
-        messages = serv_func.get_all_messages(db, arguments[0])
-    elif (command == "add_user_to_chat"):
-        pass
-    return
-
-def run(data: bytes,
-        db,
-        user_id: str,
-        active_users: dict,
-        active_users_lock: threading.Lock):
-    decoded = data.decode("utf-8").strip()  # yields "LOGIN testuser testpass"
-    parts = decoded.split(" ")  # yields ['LOGIN', 'testuser', 'testpass']
+async def run_ws(raw: str,
+                 db,
+                 user_id: str,
+                 active_users: dict,
+                 lock: asyncio.Lock):
+    parts = raw.strip().split(" ")
     command = parts[0]
-    arguments = parts[1:]
-    returnVal = commandProcess(command, arguments, db, active_users, active_users_lock)
+    args = parts[1:]
+
+    if command == "create_user":
+        if len(args) == 2:
+            serv_func.create_user(db, args[0], args[1])
+            await _reply(user_id, "OK user created", active_users, lock)
+        else:
+            await _reply(user_id, "ERROR invalid args for create_user", active_users, lock)
+
+    elif command == "login_user":
+        if len(args) == 2:
+            result = serv_func.login_user(db, args[0], args[1])
+            if result and "token" in result:
+                await _reply(user_id, f"LOGIN_SUCCESS {result['token']}", active_users, lock)
+            else:
+                await _reply(user_id, "ERROR login failed", active_users, lock)
+        else:
+            await _reply(user_id, "ERROR invalid args for login_user", active_users, lock)
+
+    elif command == "create_chat":
+        serv_func.create_chat_room(db, args)
+        await _reply(user_id, "OK chat created", active_users, lock)
+
+    elif command == "send_message":
+        if len(args) >= 3:
+            chat_id, to_user, *words = args
+            message = " ".join(words)
+            await serv_func.send_message(db, chat_id, user_id, message, active_users, lock)
+            await _reply(user_id, "OK message sent", active_users, lock)
+        else:
+            await _reply(user_id, "ERROR invalid args for send_message", active_users, lock)
+
+    elif command == "get_chats":
+        chats = serv_func.get_user_chats(db, user_id)
+        await _reply(user_id, "CHATS " + json.dumps(chats), active_users, lock)
+
+    elif command == "get_all_messages":
+        if len(args) == 1:
+            msgs = serv_func.get_all_messages(db, args[0])
+        # send the full list as JSON
+        await _reply(
+            user_id,
+            "MESSAGES_JSON " + json.dumps(msgs),
+            active_users,
+            lock
+        )
+
+    else:
+        await _reply(user_id, f"ERROR unknown command {command}", active_users, lock)
 
 
+async def _reply(user_id: str, message: str, active_users: dict, lock: asyncio.Lock):
+    """Helper to send a one-off reply back to a single user."""
+    async with lock:
+        ws = active_users.get(user_id)
+    if ws:
+        await ws.send(message)

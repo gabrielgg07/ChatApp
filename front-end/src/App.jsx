@@ -1,29 +1,53 @@
-import { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import LoginScreen from './LoginScreen';
-import ChatScreen from './ChatScreen';
-import './App.css';
+import ChatScreen from './ChatScreen';  // your post-login UI
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const socketRef = useRef(null);
+  const [username, setUsername] = useState('');
+  const [loggedIn, setLoggedIn] = useState(false);
 
-  const handleLogin = (username, password) => {
-    if (username === 'test' && password === 'test') {
-      setIsLoggedIn(true);
-    }
-  };
+  // Open WebSocket once on mount
+  useEffect(() => {
+    socketRef.current = new WebSocket('ws://localhost:5000');
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
+    socketRef.current.onopen = () => console.log('[WS] connected');
+
+    socketRef.current.onmessage = (evt) => {
+      const msg = evt.data.trim();
+      if (msg.startsWith('LOGIN_SUCCESS')) {
+        console.log('[WS] login success');
+        console.log(username)
+        setLoggedIn(true);
+      }
+      // handle other incoming messages here...
+    };
+
+    socketRef.current.onerror = (err) => {
+      console.error('[WS] error', err);
+    };
+
+    socketRef.current.onclose = () => {
+      console.log('[WS] disconnected');
+    };
+
+    return () => {
+      socketRef.current.close();
+    };
+  }, []);
+
+  // Called by LoginScreen
+  const handleLogin = (user, pass) => {
+     // 1️⃣ tell the server who I am
+    socketRef.current.send(`JOIN ${user}`);
+    setUsername(user);
+    socketRef.current.send(`login_user ${user} ${pass}`);
   };
 
   return (
-    <div className="app-container">
-      {isLoggedIn ? (
-        <ChatScreen onLogout={handleLogout} />
-      ) : (
-        <LoginScreen onLogin={handleLogin} />
-      )}
-    </div>
+    loggedIn
+      ? <ChatScreen socket={socketRef.current} username={username} />
+      : <LoginScreen onLogin={handleLogin} username={username} socket={socketRef}/>
   );
 }
 

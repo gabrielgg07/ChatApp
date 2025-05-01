@@ -1,89 +1,52 @@
-import socket
-import threading
-from concurrent.futures import ThreadPoolExecutor
+# server.py
+import asyncio
+import websockets
 import client_function as cli_func
-from firebase_setup import get_db  # Import Firestore setup
-import server_functions as sf
-# If you've set up Firebase with google-cloud-firestore or firebase_admin, 
-# you can import and initialize it here. For now, we'll leave it out 
-# since we're just focusing on the basic socket connection.
-#
-# from google.cloud import firestore
-# db = firestore.Client()  # example if you've configured Firestore credentials
+from firebase_setup import get_db  # your Firestore setup
 
-HOST = '0.0.0.0'  # Listen on all network interfaces
-PORT = 5000       # Arbitrary port to accept connections
+HOST = '0.0.0.0'
+PORT = 5000
 
-
-# ─── Global state ─────────────────────────────────────────────
-# user_id → client socket
+# user_id → websocket
 active_users      = {}
-active_users_lock = threading.Lock()
-# ──────────────────────────────────────────────────────────────
+active_users_lock = asyncio.Lock()
 
-def handle_client(client_socket, address, db):
-    print(f"[+] {address} connected")
+async def handle_client(ws, path):
+    # 1️⃣ JOIN handshake: "JOIN <user_id>"
+    init = await ws.recv()
+    try:
+        _, user_id = init.strip().split(maxsplit=1)
+    except Exception:
+        await ws.close()
+        return
 
-    # 1️⃣ Expect: "JOIN <chat_id> <user_id>\n"
-    init = client_socket.recv(1024)
-    if not init:
-        return client_socket.close()
+    async with active_users_lock:
+        active_users[user_id] = ws
+    print(f"[+] {user_id!r} connected")
 
     try:
-        _, user_id = init.decode().strip().split(maxsplit=1)
-    except ValueError:
-        print(f"[!] Bad JOIN from {address!r}: {init!r}")
-        return client_socket.close()
-
-    # 2️⃣ Register this user → socket
-    with active_users_lock:
-        active_users[user_id] = client_socket
-    print(f"    → user {user_id!r} logged in")
-
-    try:
-        while True:
-            data = client_socket.recv(4096)
-            if not data:
-                break
-
-            # 3️⃣ Delegate to your compartmentalized handler,
-            # passing everything it needs to broadcast later
-            cli_func.run(
-                data,
-                db,
+        async for raw in ws:
+            # delegate to your existing handler
+            await cli_func.run_ws(
+                raw,
+                get_db(),
                 user_id,
                 active_users,
                 active_users_lock
             )
-
-    except ConnectionResetError:
+    except websockets.exceptions.ConnectionClosed:
         pass
     finally:
-        # 4️⃣ Cleanup on disconnect
-        with active_users_lock:
+        async with active_users_lock:
             active_users.pop(user_id, None)
-        client_socket.close()
-        print(f"[-] user {user_id!r} disconnected")
+        print(f"[-] {user_id!r} disconnected")
 
-def main():
-    db = get_db()
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind((HOST, PORT))
-    server.listen(5)
-    print(f"[+] Listening on {HOST}:{PORT}")
-
-    # Create a pool of, say, 10 worker threads
-    with ThreadPoolExecutor(max_workers=10) as pool:
-        try:
-            while True:
-                client_sock, addr = server.accept()
-                # Instead of Thread(...).start(), submit to the pool:
-                pool.submit(handle_client, client_sock, addr, db)
-        except KeyboardInterrupt:
-            print("\n[!] Shutting down…")
-        finally:
-            server.close()
+async def main():
+    print(f"[+] WebSocket server listening on ws://{HOST}:{PORT}")
+    # this is the async context manager version
+    async with websockets.serve(handle_client, HOST, PORT):
+        # run forever
+        await asyncio.Future()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

@@ -524,3 +524,11 @@ html, body {
   gap: 10px; 
   border-top: 1px solid #40444b;
 }
+
+.message-bubble {
+  white-space: pre-wrap;
+}
+
+.message.received .sender-name {
+  color: #fff;
+}

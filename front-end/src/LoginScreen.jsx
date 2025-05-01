@@ -4,37 +4,27 @@ import './LoginScreen.css';
 function LoginScreen({ onLogin }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [message, setMessage] = useState('');
+  const [message, setMessage]   = useState('');
   const [messageType, setMessageType] = useState('');
   const [focusedField, setFocusedField] = useState('username');
-  
   const usernameRef = useRef(null);
-  
+
   useEffect(() => {
-    if (usernameRef.current) {
-      usernameRef.current.focus();
-    }
+    usernameRef.current?.focus();
   }, []);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (username === 'test' && password === 'test') {
-      onLogin(username, password);
-    } else {
-      setMessage('Invalid user. Try "test" "test"');
-      setMessageType('error');
-    }
+    setMessage(''); // clear old messages
+    setMessageType('');
+    onLogin(username, password);
   };
 
   const handleSignupClick = (e) => {
     e.preventDefault();
-    setMessage('User successfully created');
+    // Replace with `create_user` command if you implement signup via WS
+    setMessage('Signup sent – wait for server response');
     setMessageType('success');
-    setUsername('');
-    setPassword('');
-    if (usernameRef.current) {
-      usernameRef.current.focus();
-    }
   };
 
   return (
@@ -46,7 +36,7 @@ function LoginScreen({ onLogin }) {
             Experience seamless conversations with our AI-enhanced chat app, built using a custom NLP model, real-time socket communication, and a threadpool-powered backend for smooth performance.
           </p>
         </div>
-        
+
         <div className="login-section">
           <form onSubmit={handleSubmit} className="login-form">
             {message && (
@@ -54,7 +44,7 @@ function LoginScreen({ onLogin }) {
                 {message}
               </div>
             )}
-            
+
             <div className={`form-group ${focusedField === 'username' ? 'focused' : ''}`}>
               <label htmlFor="username">Username</label>
               <input
@@ -68,7 +58,7 @@ function LoginScreen({ onLogin }) {
                 required
               />
             </div>
-            
+
             <div className={`form-group ${focusedField === 'password' ? 'focused' : ''}`}>
               <label htmlFor="password">Password</label>
               <input
@@ -81,14 +71,14 @@ function LoginScreen({ onLogin }) {
                 required
               />
             </div>
-            
+
             <div className="button-group">
               <button type="submit" className="login-button">
                 Login
               </button>
-              <button 
-                type="button" 
-                className="signup-button" 
+              <button
+                type="button"
+                className="signup-button"
                 onClick={handleSignupClick}
               >
                 Sign up

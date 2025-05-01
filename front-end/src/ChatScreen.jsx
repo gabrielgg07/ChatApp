@@ -1,14 +1,30 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback  } from 'react';
 import { chats, messages } from './fakeData';
 import './ChatScreen.css';
 
-function ChatScreen({ onLogout }) {
+
+/* ───── tag constants ───── */
+const TAG_CHATS    = 'CHATS ';          // note the SPACE – that’s what the server sends
+const TAG_HISTORY  = 'MESSAGES_JSON';   // bulk load
+const TAG_LIVE     = 'MESSAGE_JSON';    // single push
+
+/* helper */
+const hasTag = (s, tag) => s.startsWith(tag);
+
+function ChatScreen({  socket, onLogout, username }) {
+  const [chatList, setChatList]       = useState([]);  // start empty
   const [selectedChat, setSelectedChat] = useState(null);
-  const [newMessage, setNewMessage] = useState('');
-  const [chatMessages, setChatMessages] = useState(messages);
+  const [chatMessages, setChatMessages] = useState([]); // start empty
+  const [newMessage, setNewMessage]     = useState('');
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [showEditChatModal, setShowEditChatModal] = useState(false);
-  const [chatList, setChatList] = useState(chats);
+
+
+  const selectedChatRef = useRef(selectedChat);
+  useEffect(() => {
+    selectedChatRef.current = selectedChat;
+  }, [selectedChat]);
+  
   const [newChatForm, setNewChatForm] = useState({
     username: '',
     firstName: '',
@@ -19,14 +35,151 @@ function ChatScreen({ onLogout }) {
     lastName: ''
   });
 
+    /* one, stable listener (no re-creation every render) */
+    const handleIncoming = useCallback((evt) => {
+      const msg = evt.data.trim();
+  
+      /* ─── 1. CHATS LIST ───────────────────────────── */
+      if (hasTag(msg, TAG_CHATS)) {
+        let raw;
+        try { raw = JSON.parse(msg.slice(TAG_CHATS.length)); }
+        catch { console.error('Invalid CHATS JSON'); return; }
+  
+        const uiChats = raw.map((c, idx) => {
+          const peer = c.users.find(u => u !== username) || c.chat_id;
+          let lm = c.last_message;
+          if (Array.isArray(lm)) lm = lm.join(' ');
+          const time = new Date(c.timestamp)
+                         .toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+          return {
+            id: idx + 1,
+            chatId: c.chat_id,
+            name: peer,
+            lastMessage: lm,
+            lastMessageTime: time,
+            unread: 0,
+          };
+        });
+  
+        setChatList(uiChats);
+        return;
+      }
+  
+      /* ─── 2. HISTORY (bulk) ──────────────────────── */
+      if (hasTag(msg, TAG_HISTORY)) {
+        const arr = JSON.parse(msg.slice(TAG_HISTORY.length).trim());
+  
+        const structured = arr.map((m, idx) => ({
+          id: idx + 1,
+          chatId: selectedChatRef.current,
+          senderId: m.username === username ? 'me' : 'them',
+          username: m.username,
+          text: Array.isArray(m.content) ? m.content.join(' ') : m.content,
+          timestamp: new Date(m.timestamp)
+                       .toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }),
+          date: new Date(m.timestamp).toLocaleDateString(),
+        }));
+  
+        setChatMessages(structured);
+        return;
+      }
+  
+      /* ─── 3. LIVE PUSH ───────────────────────────── */
+      if (hasTag(msg, TAG_LIVE)) {
+        const m    = JSON.parse(msg.slice(TAG_LIVE.length).trim());
+        const text = Array.isArray(m.content) ? m.content.join(' ') : m.content;
+  
+        const bubble = {
+          id: Date.now(),
+          chatId:   m.chat_id,
+          senderId: m.username === username ? 'me' : 'them',
+          username: m.username,
+          text,
+          timestamp: new Date(m.timestamp)
+                       .toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }),
+          date: new Date(m.timestamp).toLocaleDateString(),
+        };
+  
+        setChatMessages(prev => [...prev, bubble]);
+        setChatList(prev =>
+          prev.map(c => {
+            if (c.chatId !== m.chat_id) return c;
+            const inc = selectedChatRef.current === m.chat_id ? 0 : 1;
+            return {
+              ...c,
+              lastMessage:     text,
+              lastMessageTime: bubble.timestamp,
+              unread:          (c.unread || 0) + inc,
+            };
+          })
+        );
+        return;
+      }
+
+       /* ─── 4. PLAIN "user: message" frame ───────────────── */
+   const plain = msg.match(/^([^:]+):\s*(.+)$/);   // username : text
+   if (plain) {
+     const [, user, txt] = plain;
+
+     const bubble = {
+       id: Date.now(),
+       chatId:   selectedChatRef.current,          // we’re already in this chat
+       senderId: user === username ? 'me' : 'them',
+       username: user,
+       text:     txt,
+       timestamp: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
+       date:      new Date().toLocaleDateString(),
+     };
+
+     setChatMessages(prev => [...prev, bubble]);
+     setChatList(prev =>
+       prev.map(c => {
+         if (c.chatId !== bubble.chatId) return c;
+         const inc = selectedChatRef.current === bubble.chatId ? 0 : 1;
+         return {
+           ...c,
+           lastMessage:     txt,
+           lastMessageTime: bubble.timestamp,
+           unread:          (c.unread || 0) + inc,
+         };
+       })
+     );
+     return;                                     // we handled it
+   }
+  
+      /* ─── 4. Anything else – just log it ─────────── */
+      console.warn('Unhandled frame:', msg.slice(0, 60));
+    }, [username, selectedChatRef, setChatList, setChatMessages]);
+  
+    /* attach ONCE, detach on unmount */
+    useEffect(() => {
+      if (!socket) return;
+  
+      socket.onmessage = handleIncoming;      // ✔ one stable listener
+      socket.send('get_chats');               // first fetch on mount
+  
+      return () => { socket.onmessage = null; };
+    }, [socket, handleIncoming]);
+  
+    /* if you join a room when the user selects it */
+    useEffect(() => {
+      if (!socket || !selectedChat) return;
+      socket.send(`join ${selectedChat}`);
+    }, [socket, selectedChat]);
+  
+
   const handleChatSelect = (chatId) => {
     setSelectedChat(chatId);
+    // request all messages for this chat
+    socket.send(`get_all_messages ${chatId}`);
   };
 
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (newMessage.trim() === '') return;
 
+
+    socket.send(`send_message ${selectedChat} ${username} ${newMessage}`);
     const newMsg = {
       id: chatMessages.length + 1,
       chatId: selectedChat,
@@ -35,8 +188,8 @@ function ChatScreen({ onLogout }) {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       date: new Date().toLocaleDateString()
     };
-
-    setChatMessages([...chatMessages, newMsg]);
+  // ------------ Render Logic ------------//
+  setChatMessages([...chatMessages, newMsg]);
     setNewMessage('');
   };
 
@@ -157,7 +310,7 @@ function ChatScreen({ onLogout }) {
     msg => msg.chatId === selectedChat
   );
 
-  const selectedChatData = chatList.find(chat => chat.id === selectedChat);
+  const selectedChatData = chatList.find(chat => chat.chatId === selectedChat);
 
   // Helper function to get initials from a name
   const getInitials = (name) => {
@@ -184,12 +337,12 @@ function ChatScreen({ onLogout }) {
           </div>
         </div>
         <div className="chat-list">
-          {chatList.map((chat) => (
-            <div 
-              key={chat.id} 
-              className={`chat-item ${selectedChat === chat.id ? 'active' : ''}`}
-              onClick={() => handleChatSelect(chat.id)}
-            >
+        {chatList.map((chat) => (
+   <div 
+     key={chat.chatId} 
+     className={`chat-item ${selectedChat === chat.chatId ? 'active' : ''}`}
+     onClick={() => handleChatSelect(chat.chatId)}
+   >
               <div className="chat-avatar">
                 {getInitials(chat.name)}
               </div>
@@ -224,14 +377,17 @@ function ChatScreen({ onLogout }) {
             <div className="message-container">
               {selectedChatMessages.map((message) => (
                 <div 
-                  key={message.id} 
-                  className={`message ${message.senderId === 'me' ? 'sent' : 'received'}`}
-                >
-                  <div className="message-bubble">
-                    {message.text}
-                  </div>
-                  <div className="message-time">{message.timestamp}</div>
+                key={message.id} 
+                className={`message ${message.senderId==='me'?'sent':'received'}`}
+              >
+                {message.senderId === 'them' && (
+                  <div className="sender-name">{message.username}</div>
+                )}
+                <div className="message-bubble">
+                  {message.text}
                 </div>
+                <div className="message-time">{message.timestamp}</div>
+              </div>
               ))}
             </div>
 

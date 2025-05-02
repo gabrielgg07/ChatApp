@@ -47,7 +47,7 @@ function App() {
   return (
     loggedIn
       ? <ChatScreen socket={socketRef.current} username={username} />
-      : <LoginScreen onLogin={handleLogin} username={username} socket={socketRef}/>
+      : <LoginScreen onLogin={handleLogin} username={username} socket={socketRef} sendCommand={(cmd) => socketRef.current.send(cmd)}/>
   );
 }
 

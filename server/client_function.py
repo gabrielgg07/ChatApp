@@ -1,6 +1,12 @@
 import server_functions as serv_func
 import asyncio
 import json
+from datetime import datetime
+def json_serial(obj):
+    """JSON serializer for objects not serializable by default"""
+    if isinstance(obj, datetime):             # handles DatetimeWithNanoseconds too
+        return obj.isoformat(timespec="milliseconds") + "Z"
+    raise TypeError(f"{obj!r} is not JSON serializable")
 
 async def run_ws(raw: str,
                  db,
@@ -51,7 +57,7 @@ async def run_ws(raw: str,
         # send the full list as JSON
         await _reply(
             user_id,
-            "MESSAGES_JSON " + json.dumps(msgs),
+            "MESSAGES_JSON " + json.dumps(msgs, default=json_serial),
             active_users,
             lock
         )

@@ -3,6 +3,7 @@ from datetime import datetime
 import bcrypt
 import jwtF as jwtF
 import asyncio 
+from firebase_admin import firestore
 
 # Firestore array union helper
 from google.cloud.firestore_v1 import ArrayUnion
@@ -234,10 +235,18 @@ def login_user(db, username, input_password):
 def get_ai_insights(db, chat_id):
 
     insights_ref = db.collection("chat_rooms").document(chat_id).collection("llm_insights")
-    query = insights_ref.where("chat_id", "==", chat_id).limit(1)
+    query = insights_ref.order_by("timestamp", direction=firestore.Query.DESCENDING).limit(1)
     results = query.get()
     insights_doc = insights_ref.get()
     if not results:
         return None
-    return results[0].to_dict()
+
+    insights = results[0].to_dict()
+    if "timestamp" in insights:
+        del insights["timestamp"]
+
+    return insights
+
+
+    
 

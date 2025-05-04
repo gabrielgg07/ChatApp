@@ -68,7 +68,7 @@ async def run_ws(raw: str,
             if insights is not None:
                 await _reply(user_id, "INSIGHTS " + json.dumps(insights), active_users, lock)
             else:
-                await _reply(user_id, json.dumps({"error": "No insights found"}), active_users, lock)
+                await _reply(user_id, "INSIGHTS" + json.dumps({"error": "No insights found"}), active_users, lock)
 
     
 

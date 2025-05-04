@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback  } from 'react';
+import { Typewriter } from 'react-simple-typewriter';
 import { chats, messages } from './fakeData';
 import './ChatScreen.css';
 
@@ -201,7 +202,7 @@ function ChatScreen({  socket, onLogout, username }) {
 
       // Send the command to request insights
       socket.send(`get_ai_insights ${selectedChat}`);
-    }, [socket, selectedChat]);
+    }, [socket, selectedChat, chatMessages]);
   
 
   const handleChatSelect = (chatId) => {
@@ -413,24 +414,8 @@ function ChatScreen({  socket, onLogout, username }) {
               <button className="ai-insights-button" onClick={openAIInsightsModal}>
                 <span className="rainbow-text">AI Insights</span>
               </button>
-
               {showAIInsightsModal && (
-                <div className="modal-overlay" onClick={closeAIInsightsModal}>
-                  <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                    <div className="modal-header">
-                      <h2>AI Insights</h2>
-                      <button className="close-button" onClick={closeAIInsightsModal}>×</button>
-                    </div>
-                    <div className="modal-body">
-                        {showAIInsightsModal && (
-                        <AIInsightsModal
-                          onClose={closeAIInsightsModal}
-                          insights={aiInsights}
-                        />
-                      )}
-                    </div>
-                  </div>
-                </div>
+                <AIInsightsModal insights={aiInsights} onClose={closeAIInsightsModal} />
               )}
 
               <button className="edit-chat-button" onClick={handleEditChat}>
@@ -577,39 +562,79 @@ const AIInsightsModal = ({ insights, onClose }) => {
   if (!insights) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
+    <div className="ai-insights-modal-overlay" onClick={onClose}>
+      <div className="ai-insights-modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="ai-insights-modal-header">
           <h2>AI Insights</h2>
-          <button className="close-button" onClick={onClose}>×</button>
+          <button className="ai-insights-close-button" onClick={onClose}>×</button>
         </div>
+        <div className="ai-insights-modal-body">
+  <h3 className="insights-section-title">Pending Tasks</h3>
+  <table className="ai-insights-task-table">
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th>Assigned To</th>
+        <th>Due Date</th>
+      </tr>
+    </thead>
+    
+    <tbody>
+  {insights.pending_tasks.map((task, idx) => (
+    <tr key={`pending-${idx}`}>
+      <td><TypewriterCell text={task.description} /></td>
+      <td><TypewriterCell text={task.assigned_to} /></td>
+      <td><TypewriterCell text={task.due_date || "—"} /></td>
+    </tr>
+  ))}
+</tbody>
+</table>
 
-        <div className="modal-body">
-          <h4>Additional Notes</h4>
-          <p>{insights.additional_notes}</p>
+<h3 className="insights-section-title">Completed Tasks</h3>
+<table className="ai-insights-task-table">
+  <thead>
+    <tr>
+      <th>Description</th>
+      <th>Completed By</th>
+    </tr>
+  </thead>
+  <tbody>
+    {insights.completed_tasks.map((task, idx) => (
+      <tr key={`completed-${idx}`}>
+        <td><TypewriterCell text={task.description} /></td>
+        <td><TypewriterCell text={task.completed_by} /></td>
+      </tr>
+    ))}
+  </tbody>
+</table>
 
-          <h4>Pending Tasks</h4>
-          <ul>
-            {insights.pending_tasks.map((task, idx) => (
-              <li key={idx}>
-                <strong>{task.description}</strong><br />
-                <small>Assigned to: {task.assigned_to}</small>
-              </li>
-            ))}
-          </ul>
+<h4 className="insights-section-title">Additional Notes</h4>
+<p className="insights-notes-text">
+  <TypewriterCell text={insights.additional_notes} />
+</p>
 
-          <h4>Completed Tasks</h4>
-          <ul>
-            {insights.completed_tasks.map((task, idx) => (
-              <li key={idx}>
-                ✅ {task.description} <small>(by {task.completed_by})</small>
-              </li>
-            ))}
-          </ul>
-        </div>
+</div>
+
       </div>
     </div>
   );
 };
+
+
+const TypewriterCell = ({ text }) => {
+  return (
+    <span style={{ whiteSpace: 'pre-wrap' }}>
+      <Typewriter
+        words={[text]}
+        loop={1}
+        cursor={false}
+        typeSpeed={40}
+        deleteSpeed={0}
+        delaySpeed={1000}
+      />
+    </span>
+  );
+};
+
 
 export default ChatScreen;
